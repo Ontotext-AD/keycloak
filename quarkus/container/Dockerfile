@@ -21,6 +21,14 @@ RUN chmod -R g+rwX /opt/keycloak
 ADD ubi-null.sh /tmp/
 RUN bash /tmp/ubi-null.sh java-21-openjdk-headless glibc-langpack-en findutils
 
+# Fail the build if the repositories resolve an OpenJDK older than the patched
+# release (21.0.13 fixes CVE-2026-91403).
+ARG JAVA_MIN_VERSION=21.0.13.0.9
+RUN java_version="$(rpm -r /tmp/null/rootfs -q --qf '%{VERSION}' java-21-openjdk-headless)" && \
+    echo "Installed java-21-openjdk-headless ${java_version} (minimum ${JAVA_MIN_VERSION})" && \
+    [ "$(rpm --eval "%{lua: print(rpm.vercmp('${java_version}', '${JAVA_MIN_VERSION}'))}")" -ge 0 ] || \
+    { echo "ERROR: java-21-openjdk-headless ${java_version} is older than ${JAVA_MIN_VERSION}" >&2; exit 1; }
+
 # UBI 9 provides PCRE2 10.40 through libselinux. Replace that transitive
 # dependency with the upstream release required by the container image.
 RUN rpm -r /tmp/null/rootfs -e --nodeps pcre2-syntax pcre2 && \
